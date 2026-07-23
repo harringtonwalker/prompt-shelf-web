@@ -10,10 +10,12 @@ const errors = [];
 const prompts = JSON.parse(await readFile(new URL('../data/prompts.json', import.meta.url), 'utf8'));
 const templatePrompts = JSON.parse(await readFile(new URL('../templates/private-workspace/data/prompts.json', import.meta.url), 'utf8'));
 const templateSkills = JSON.parse(await readFile(new URL('../templates/private-workspace/data/skills-index.json', import.meta.url), 'utf8'));
+const templateAIChats = JSON.parse(await readFile(new URL('../templates/private-workspace/data/ai-chats.json', import.meta.url), 'utf8'));
 if (!Array.isArray(prompts.prompts) || prompts.prompts.length) errors.push('data/prompts.json 必须保持 0 条提示词');
 if (!Array.isArray(prompts.trash) || prompts.trash.length) errors.push('data/prompts.json 回收站必须为空');
 if (!Array.isArray(templatePrompts.prompts) || templatePrompts.prompts.length) errors.push('私有工作区提示词模板必须保持空白');
 if (!Array.isArray(templateSkills.skills) || templateSkills.skills.length) errors.push('私有工作区 Skill 模板必须保持空白');
+if (!Array.isArray(templateAIChats.conversations) || templateAIChats.conversations.length) errors.push('私有工作区 AI 对话模板必须保持空白');
 
 const textExtensions = new Set(['.html', '.md', '.json', '.mjs', '.js', '.css', '.txt', '.yml', '.yaml']);
 const secretPattern = /\b(?:github_pat_[A-Za-z0-9_]{20,}|gh[pousr]_[A-Za-z0-9_]{20,}|sk-(?:ant-|or-)?[A-Za-z0-9_-]{20,}|AIza[A-Za-z0-9_-]{30,})\b/;
@@ -42,7 +44,11 @@ function jsonRecordCountAt(ref, path, label) {
   if (result.status !== 0) return null;
   try {
     const payload = JSON.parse(result.stdout);
-    const records = label === '提示词' ? [...(payload.prompts || []), ...(payload.trash || [])] : (payload.skills || []);
+    const records = /ai-chats\.json$/i.test(path)
+      ? (payload.conversations || [])
+      : /(?:prompts(?:-data)?|提示词[^/]*)\.json$/i.test(path)
+        ? [...(payload.prompts || []), ...(payload.trash || [])]
+        : (payload.skills || []);
     return records.length;
   } catch {
     return Number.NaN;
@@ -67,6 +73,7 @@ function inspectGitHistory() {
   for (const ref of refs) {
     inspectJsonAtRef(ref, 'data/prompts.json', '提示词');
     inspectJsonAtRef(ref, 'data/skills-index.json', 'Skill');
+    inspectJsonAtRef(ref, 'data/ai-chats.json', 'AI 对话');
   }
   const remoteResult = git(['ls-remote', '--heads', '--tags', 'origin'], { timeout: 15000 });
   if (remoteResult.status !== 0) {
@@ -83,6 +90,7 @@ function inspectGitHistory() {
   for (const [sha, ref] of remoteEntries) {
     inspectJsonAtRef(sha, 'data/prompts.json', `提示词（${ref}）`);
     inspectJsonAtRef(sha, 'data/skills-index.json', `Skill（${ref}）`);
+    inspectJsonAtRef(sha, 'data/ai-chats.json', `AI 对话（${ref}）`);
   }
   const commitsResult = git(['rev-list', '--all', ...remoteShas]);
   if (commitsResult.status !== 0) { errors.push('无法检查完整 Git 历史'); return; }
@@ -92,6 +100,7 @@ function inspectGitHistory() {
   const sensitiveFileCommits = [];
   const promptDataCommits = [];
   const skillDataCommits = [];
+  const aiChatDataCommits = [];
   const skillSourceCommits = [];
   for (const commit of commits) {
     if (pathCommits.length < 5 && git(['grep', '-I', '-q', '-E', privatePathGitPattern, commit, '--', '.']).status === 0) pathCommits.push(commit.slice(0,12));
@@ -109,6 +118,10 @@ function inspectGitHistory() {
         const skillPaths = paths.filter((path)=>/(^|\/)skills-index\.json$/i.test(path));
         if (skillPaths.some((path)=>Number(jsonRecordCountAt(commit, path, 'Skill')) > 0)) skillDataCommits.push(commit.slice(0,12));
       }
+      if (aiChatDataCommits.length < 5) {
+        const aiChatPaths = paths.filter((path)=>/(^|\/)ai-chats\.json$/i.test(path));
+        if (aiChatPaths.some((path)=>Number(jsonRecordCountAt(commit, path, 'AI 对话')) > 0)) aiChatDataCommits.push(commit.slice(0,12));
+      }
     }
   }
   if (pathCommits.length) errors.push(`Git 历史含本机绝对路径，示例提交：${pathCommits.join(', ')}`);
@@ -116,6 +129,7 @@ function inspectGitHistory() {
   if (sensitiveFileCommits.length) errors.push(`Git 历史含敏感文件名或数据库，示例提交：${sensitiveFileCommits.join(', ')}`);
   if (promptDataCommits.length) errors.push(`Git 历史含真实提示词 JSON，示例提交：${promptDataCommits.join(', ')}`);
   if (skillDataCommits.length) errors.push(`Git 历史含真实 Skill 索引，示例提交：${skillDataCommits.join(', ')}`);
+  if (aiChatDataCommits.length) errors.push(`Git 历史含真实 AI 对话，示例提交：${aiChatDataCommits.join(', ')}`);
   if (skillSourceCommits.length) errors.push(`Git 历史含完整 Skill 源码路径，示例提交：${skillSourceCommits.join(', ')}`);
 }
 

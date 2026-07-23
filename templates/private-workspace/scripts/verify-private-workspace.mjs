@@ -4,6 +4,7 @@ import process from 'node:process';
 
 const root = decodeURIComponent(new URL('../', import.meta.url).pathname);
 const errors = [];
+const templateMode = process.argv.includes('--template');
 const secretPattern = /\b(?:github_pat_[A-Za-z0-9_]{20,}|gh[pousr]_[A-Za-z0-9_]{20,}|sk-(?:ant-|or-)?[A-Za-z0-9_-]{20,}|AIza[A-Za-z0-9_-]{30,})\b/;
 const sensitiveNames = new Set(['cookies','cookies-journal','login data','login data-journal','web data','web data-journal','history','local state','network persistent state']);
 const sensitiveDirectories = new Set(['session storage','local storage','indexeddb','user data','browser profile','chrome_data','chrome data','chrome-data','chromium data','firefox profile','edge profile','brave profile']);
@@ -22,10 +23,14 @@ async function json(path, label) {
 
 const prompts = await json(join(root, 'data/prompts.json'), 'data/prompts.json');
 const skills = await json(join(root, 'data/skills-index.json'), 'data/skills-index.json');
+const aiChats = await json(join(root, 'data/ai-chats.json'), 'data/ai-chats.json');
 const marker = await json(join(root, 'private-workspace.json'), 'private-workspace.json');
-if (marker.private !== true || marker.purpose !== 'prompt-shelf-personal-workspace' || !/^[^/\s]+\/[^/\s]+$/.test(String(marker.repository || ''))) errors.push('private-workspace.json 尚未绑定确认过的私有 owner/repository');
+if (marker.private !== true || marker.purpose !== 'prompt-shelf-personal-workspace') errors.push('private-workspace.json 的私有工作区标记无效');
+if (!templateMode && !/^[^/\s]+\/[^/\s]+$/.test(String(marker.repository || ''))) errors.push('private-workspace.json 尚未绑定确认过的私有 owner/repository');
 if (!Array.isArray(prompts.prompts) || !Array.isArray(prompts.categories)) errors.push('提示词数据结构无效');
 if (!Array.isArray(skills.skills) || !Array.isArray(skills.categories)) errors.push('Skill 索引结构无效');
+if (!Array.isArray(aiChats.conversations) || !Array.isArray(aiChats.deleted)) errors.push('AI 对话数据结构无效');
+if (templateMode && ((prompts.prompts || []).length || (prompts.trash || []).length || (skills.skills || []).length || (aiChats.conversations || []).length)) errors.push('初始化模板必须保持空白');
 for (const skill of skills.skills || []) {
   const sourcePath = String(skill.sourcePath || '');
   if (sourcePath && (!sourcePath.startsWith('skills/') || sourcePath.includes('..') || sourcePath.includes('\\'))) errors.push(`Skill sourcePath 非法：${skill.id || 'unknown'}`);
@@ -53,4 +58,4 @@ async function scan(dir) {
 
 await scan(root);
 if (errors.length) { console.error(errors.map((item)=>`- ${item}`).join('\n')); process.exitCode=1; }
-else console.log(`Private workspace OK: ${prompts.prompts.length} prompts, ${skills.skills.length} skills, no detected credential files.`);
+else console.log(`${templateMode ? 'Private workspace template' : 'Private workspace'} OK: ${prompts.prompts.length} prompts, ${skills.skills.length} skills, ${aiChats.conversations.length} AI chats, no detected credential files.`);
