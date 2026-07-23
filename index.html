@@ -1173,8 +1173,22 @@
     html[data-theme="dark"] .skill-role-employee { color: #9dd6dc; background: #20383c; }
     html[data-theme="dark"] .skill-role-department { color: #f1c980; background: #443622; }
     html[data-theme="dark"] .skill-role-intern { color: #ffad9d; background: #482b28; }
-    .skill-role-legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-    .skill-role-legend .skill-role-badge { padding: 4px 7px; font-size: 10px; }
+    .skill-role-filters { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin-top: 8px; }
+    .skill-role-filter {
+      appearance: none;
+      min-height: 30px;
+      padding: 4px 8px;
+      font: inherit;
+      cursor: pointer;
+      transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+    }
+    .skill-role-filter:hover { transform: translateY(-1px); }
+    .skill-role-filter:focus-visible { outline: 3px solid rgba(116, 55, 213, .24); outline-offset: 2px; }
+    .skill-role-filter[aria-pressed="true"] { box-shadow: 0 0 0 2px currentColor; }
+    .skill-role-all { color: var(--ink-soft); background: var(--surface-soft); border-color: var(--line-strong); }
+    .skill-role-count { margin-left: 5px; font-variant-numeric: tabular-nums; opacity: .72; }
+    #skillModeView .workspace-toolbar > div { min-width: 0; }
+    @media (max-width: 800px) { .skill-role-filters { justify-content: flex-start; } }
     .skill-card h3 { margin: 17px 0 9px; font-size: 20px; line-height: 1.35; }
     .skill-card p { margin: 0 0 20px; color: var(--muted); line-height: 1.7; }
     .skill-card-meta { color: var(--muted); font-size: 13px; }
@@ -1410,7 +1424,7 @@
               <span aria-hidden="true" data-icon="search"></span>
               <input id="skillSearchInput" type="search" placeholder="搜索 Skill 名称、用途或分类…" autocomplete="off">
             </label>
-            <div><div class="skill-private-note"><span aria-hidden="true" data-icon="lock"></span><span id="skillPrivacyLabel">等待连接私有工作区</span></div><div class="skill-role-legend" aria-label="Skill角色颜色说明"><span class="skill-role-badge skill-role-assistant">总助</span><span class="skill-role-badge skill-role-employee">员工</span><span class="skill-role-badge skill-role-department">部门</span><span class="skill-role-badge skill-role-intern">实习生</span></div></div>
+            <div><div class="skill-private-note"><span aria-hidden="true" data-icon="lock"></span><span id="skillPrivacyLabel">等待连接私有工作区</span></div><div class="skill-role-filters" id="skillRoleFilters" role="group" aria-label="按 Skill 角色筛选"></div></div>
           </div>
           <div class="results-line">
             <h2 class="results-title" id="skillResultsTitle">全部 Skill</h2>
@@ -1980,6 +1994,7 @@
       skillCategories: [],
       skillQuery: '',
       skillFilter: 'all',
+      skillRoleFilter: 'all',
       skillsSha: '',
       skillsVersion: '',
       skillsGeneratedAt: '',
@@ -2806,6 +2821,23 @@
       return 'employee';
     }
     function skillRoleMeta(skill) { return SKILL_ROLE_META[skillRoleId(skill)] || SKILL_ROLE_META.employee; }
+    function skillRoleCounts() {
+      const counts = { all: state.skills.length, assistant: 0, employee: 0, department: 0, intern: 0 };
+      state.skills.forEach((skill) => { const role = skillRoleId(skill); counts[role] = (counts[role] || 0) + 1; });
+      return counts;
+    }
+    function renderSkillRoleFilters() {
+      const counts = skillRoleCounts();
+      const options = [
+        { id: 'all', label: '全部', className: 'skill-role-all' },
+        ...Object.entries(SKILL_ROLE_META).map(([id, meta]) => ({ id, label: meta.label, className: meta.className }))
+      ];
+      $('skillRoleFilters').innerHTML = options.map((item) => `<button class="skill-role-badge skill-role-filter ${item.className}" type="button" data-skill-role-filter="${item.id}" aria-pressed="${state.skillRoleFilter === item.id}" title="只看${item.label === '全部' ? '全部角色' : item.label}">${item.label}<span class="skill-role-count">${counts[item.id] || 0}</span></button>`).join('');
+      $('skillRoleFilters').querySelectorAll('[data-skill-role-filter]').forEach((button) => button.addEventListener('click', () => {
+        state.skillRoleFilter = button.dataset.skillRoleFilter;
+        renderSkillGrid();
+      }));
+    }
     function normalizeSkill(input) {
       if (!input || typeof input !== 'object') return null;
       const id = String(input.id || input.slug || input.name || '').trim();
@@ -2835,6 +2867,7 @@
       state.skillsVersion = String(payload.sourceRevision || payload.dataVersion || payload.version || '');
       state.skillsGeneratedAt = String(payload.generatedAt || '');
       if (state.skillFilter !== 'all' && !skillCategoryMeta().some((item) => item.id === state.skillFilter)) state.skillFilter = 'all';
+      if (state.skillRoleFilter !== 'all' && !SKILL_ROLE_META[state.skillRoleFilter]) state.skillRoleFilter = 'all';
       return true;
     }
     function assertNoSecretLikeData(value) {
@@ -3926,6 +3959,7 @@ JSON 格式：{"status":"clarifying|generated","understandingProgress":0,"questi
       const query = normalize(state.skillQuery);
       return state.skills.filter((skill) => {
         if (state.skillFilter !== 'all' && skillCategoryId(skill) !== state.skillFilter) return false;
+        if (state.skillRoleFilter !== 'all' && skillRoleId(skill) !== state.skillRoleFilter) return false;
         if (!query) return true;
         const category = skillCategoryDisplay(skill);
         const role = skillRoleMeta(skill);
@@ -3935,12 +3969,16 @@ JSON 格式：{"status":"clarifying|generated","understandingProgress":0,"questi
     function renderSkillGrid() {
       const skills = getVisibleSkills();
       const selectedCategory = skillCategoryMeta().find((item) => item.id === state.skillFilter);
+      const selectedRole = state.skillRoleFilter === 'all' ? null : SKILL_ROLE_META[state.skillRoleFilter];
       $('skillHeroCount').textContent = state.skills.length;
-      $('skillResultsTitle').textContent = state.skillFilter === 'all' ? '全部 Skill' : `${selectedCategory?.name || state.skillFilter} · ${selectedCategory?.id || state.skillFilter}`;
+      const categoryTitle = state.skillFilter === 'all' ? '全部 Skill' : `${selectedCategory?.name || state.skillFilter} · ${selectedCategory?.id || state.skillFilter}`;
+      $('skillResultsTitle').textContent = selectedRole ? `${categoryTitle} · ${selectedRole.label}` : categoryTitle;
       $('skillResultsMeta').textContent = `${skills.length} 个结果`;
       $('skillPrivacyLabel').textContent = state.skillsError ? `读取失败：${state.skillsError}` : state.githubToken && state.githubReady ? '来自私有个人工作区' : '公共框架不包含私人 Skill';
+      renderSkillRoleFilters();
       if (!skills.length) {
-        $('skillGrid').innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div><div class="empty-icon">${icon('spark')}</div><h3>${state.skillQuery ? '没有找到匹配的 Skill' : state.githubToken ? '私有索引暂时为空' : '这里不会公开显示私人 Skill'}</h3><p>${state.skillQuery ? '换个名称、用途或分类关键词试试。' : state.githubToken ? (state.skillsError || '运行当前有效的 Skill 同步脚本并推送私有工作区后，这里会自动读取。') : '仓库所有者在当前设备连接私有个人工作区后即可读取；匿名用户和 Fork 用户看到的是空白框架。'}</p></div></div>`;
+        const hasActiveFilter = state.skillFilter !== 'all' || state.skillRoleFilter !== 'all';
+        $('skillGrid').innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div><div class="empty-icon">${icon('spark')}</div><h3>${state.skillQuery ? '没有找到匹配的 Skill' : hasActiveFilter ? '当前筛选没有 Skill' : state.githubToken ? '私有索引暂时为空' : '这里不会公开显示私人 Skill'}</h3><p>${state.skillQuery ? '换个名称、用途或分类关键词试试。' : hasActiveFilter ? '选择“全部”角色或切换一级类目后再试。' : state.githubToken ? (state.skillsError || '运行当前有效的 Skill 同步脚本并推送私有工作区后，这里会自动读取。') : '仓库所有者在当前设备连接私有个人工作区后即可读取；匿名用户和 Fork 用户看到的是空白框架。'}</p></div></div>`;
         return;
       }
       $('skillGrid').innerHTML = skills.map((skill) => { const category = skillCategoryDisplay(skill); const role = skillRoleMeta(skill); return `<button class="skill-card" type="button" data-skill-id="${escapeHTML(skill.id)}"><span class="skill-card-top"><span class="skill-category-chip"><span class="skill-category-zh">${escapeHTML(category.zh)}</span><span class="skill-category-en">${escapeHTML(category.en)}</span></span><span class="skill-role-badge ${role.className}">${escapeHTML(role.label)}</span></span><h3>${escapeHTML(skill.name)}</h3><p>${escapeHTML(skill.description || '暂无简介')}</p><span class="skill-card-meta"><span class="skill-status ${skill.status === 'archived' ? 'archived' : ''}">${escapeHTML(skill.status === 'active' ? '可用' : skill.status)}</span><span class="private-badge">私有</span><span>${escapeHTML(skill.updatedAt ? `更新于 ${skill.updatedAt.slice(0,10)}` : '等待更新时间')}</span></span></button>`; }).join('');
@@ -5012,7 +5050,7 @@ JSON 格式：{"status":"clarifying|generated","understandingProgress":0,"questi
       const expanded = $('managementSectionToggle').getAttribute('aria-expanded') !== 'true';
       setSidebarSection('managementSectionToggle', 'managementSectionContent', expanded);
     });
-    $('brandHome').addEventListener('click', (event) => { event.preventDefault(); if(state.mode==='skills'){state.skillFilter='all';state.skillQuery='';}else{state.filter='all';state.query='';}render();closeSidebar(); });
+    $('brandHome').addEventListener('click', (event) => { event.preventDefault(); if(state.mode==='skills'){state.skillFilter='all';state.skillRoleFilter='all';state.skillQuery='';}else{state.filter='all';state.query='';}render();closeSidebar(); });
     $('mobileMenuButton').addEventListener('click', () => { const open = $('appShell').classList.toggle('sidebar-open'); $('mobileMenuButton').setAttribute('aria-expanded', open); document.querySelector('.main').inert = open; });
     $('mobileOverlay').addEventListener('click', closeSidebar);
     $('openAISettingsButton').addEventListener('click', openAISettings);
