@@ -1,0 +1,13 @@
+.DS_Store
+.env
+.env.*
+node_modules/
+__pycache__/
+*.py[cod]
+*.sqlite
+*.sqlite3
+*.db
+*.pem
+*.key
+*.p12
+*.pfx

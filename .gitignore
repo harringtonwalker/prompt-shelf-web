@@ -1,0 +1,11 @@
+# Device-local secrets and personal exports must never enter Git.
+*.env
+提示词收藏库-ai.env
+提示词收藏库-ai-config.json
+提示词收藏库-data.json
+提示词收藏库-备份-*.json
+
+# Browser and test artifacts.
+output/
+.playwright-cli/
+.DS_Store

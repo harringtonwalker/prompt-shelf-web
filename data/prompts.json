@@ -1,0 +1,23 @@
+{
+  "version": 3,
+  "revision": 0,
+  "categoryRevision": 0,
+  "savedAt": "",
+  "lastBackupAt": 0,
+  "lastSyncAt": 0,
+  "prompts": [],
+  "categories": [
+    { "id": "writing", "name": "写作与内容", "system": true },
+    { "id": "visual", "name": "图像与视觉", "system": true },
+    { "id": "video", "name": "视频与脚本", "system": true },
+    { "id": "research", "name": "研究与分析", "system": true },
+    { "id": "work", "name": "工作与效率", "system": true },
+    { "id": "product", "name": "编程与产品", "system": true },
+    { "id": "learning", "name": "学习与成长", "system": true },
+    { "id": "other", "name": "其他", "system": true }
+  ],
+  "categoryPurged": [],
+  "categoryRevived": [],
+  "trash": [],
+  "purged": []
+}
