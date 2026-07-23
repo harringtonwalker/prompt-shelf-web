@@ -2761,7 +2761,7 @@
 
     function dataPayload() {
       const revision = Number(state.revision || Date.now());
-      return { version: 3, revision, categoryRevision: state.categoryRevision || 0, savedAt: new Date(revision).toISOString(), lastBackupAt: state.lastBackupAt || 0, lastSyncAt: state.lastSyncAt || 0, prompts: state.prompts, categories: state.categories, categoryPurged: state.categoryPurged, categoryRevived: state.categoryRevived, trash: state.trash, purged: state.purged };
+      return { version: 3, revision, categoryRevision: state.categoryRevision || 0, savedAt: new Date(revision).toISOString(), lastBackupAt: state.lastBackupAt || 0, lastSyncAt: state.lastSyncAt || 0, prompts: state.prompts.map(serializePrompt), categories: state.categories, categoryPurged: state.categoryPurged, categoryRevived: state.categoryRevived, trash: state.trash.map(serializePrompt), purged: state.purged };
     }
     function githubWorkspaceIdentity(config = state.githubConfig) {
       const normalized = normalizeGithubConfig(config);
@@ -2999,6 +2999,13 @@
     }
     function normalizePrompt(prompt) {
       if (!prompt || !prompt.title || !prompt.content) return null;
+      const aiMetadata = prompt.aiMetadata && typeof prompt.aiMetadata === 'object' ? { ...prompt.aiMetadata } : null;
+      const capability = aiMetadata?.capability && typeof aiMetadata.capability === 'object' ? aiMetadata.capability : {};
+      const aiSummary = String(prompt.aiSummary || capability.summary || prompt.purpose || '').trim().slice(0, 320);
+      const useCasesInput = Array.isArray(prompt.useCases) && prompt.useCases.length ? prompt.useCases : capability.useCases;
+      const useCases = Array.isArray(useCasesInput) ? useCasesInput.map(String).map((item) => item.trim()).filter(Boolean).slice(0, 8) : [];
+      const statusInput = ['ready','pending','waiting','failed'].includes(prompt.metadataStatus) ? prompt.metadataStatus : capability.status;
+      const metadataStatus = ['ready','pending','waiting','failed'].includes(statusInput) ? statusInput : (aiSummary ? 'ready' : 'waiting');
       return {
         id: String(prompt.id || makeId()),
         title: String(prompt.title).trim(),
@@ -3016,13 +3023,27 @@
         deletedAt: Number(prompt.deletedAt || 0),
         parentPromptId: String(prompt.parentPromptId || ''),
         sourceType: ['manual','import','ai-created','ai-revision'].includes(prompt.sourceType) ? prompt.sourceType : 'manual',
-        aiMetadata: prompt.aiMetadata && typeof prompt.aiMetadata === 'object' ? { ...prompt.aiMetadata } : null,
-        aiSummary: String(prompt.aiSummary || prompt.purpose || '').trim().slice(0, 320),
-        useCases: Array.isArray(prompt.useCases) ? prompt.useCases.map(String).map((item) => item.trim()).filter(Boolean).slice(0, 8) : [],
-        metadataStatus: ['ready','pending','waiting','failed'].includes(prompt.metadataStatus) ? prompt.metadataStatus : (prompt.aiSummary ? 'ready' : 'waiting'),
-        metadataUpdatedAt: Number(prompt.metadataUpdatedAt || 0),
+        aiMetadata,
+        aiSummary,
+        useCases,
+        metadataStatus,
+        metadataUpdatedAt: Number(prompt.metadataUpdatedAt || capability.updatedAt || 0),
         revisions: Array.isArray(prompt.revisions) ? prompt.revisions.filter((item) => item && item.id && item.content).map((item) => ({ id: String(item.id), title: String(item.title || prompt.title), content: String(item.content), note: String(item.note || ''), tags: Array.isArray(item.tags) ? item.tags.map(String) : [], mode: String(item.mode || ''), provider: String(item.provider || ''), model: String(item.model || ''), score: Number(item.score || 0), changeSummary: String(item.changeSummary || ''), createdAt: Number(item.createdAt || NOW) })).slice(-50) : []
       };
+    }
+    function serializePrompt(prompt) {
+      const { aiSummary, useCases, metadataStatus, metadataUpdatedAt, ...record } = prompt;
+      const metadata = record.aiMetadata && typeof record.aiMetadata === 'object' ? { ...record.aiMetadata } : {};
+      delete metadata.capability;
+      const summary = String(aiSummary || '').trim().slice(0, 320);
+      const scenarios = Array.isArray(useCases) ? useCases.map(String).map((item) => item.trim()).filter(Boolean).slice(0, 8) : [];
+      const status = ['ready','pending','waiting','failed'].includes(metadataStatus) ? metadataStatus : (summary ? 'ready' : 'waiting');
+      const updatedAt = Number(metadataUpdatedAt || 0);
+      if (summary || scenarios.length || status !== 'waiting' || updatedAt) {
+        metadata.capability = { summary, useCases: scenarios, status, updatedAt };
+      }
+      record.aiMetadata = Object.keys(metadata).length ? metadata : null;
+      return record;
     }
     function normalizeAIChatMessage(message) {
       if (!message || !['user','assistant'].includes(message.role) || !String(message.content || '').trim()) return null;
@@ -3161,7 +3182,11 @@
     }
     function recordClock(record) { return Math.max(Number(record.updatedAt || 0), Number(record.deletedAt || 0), Number(record.createdAt || 0)); }
     function payloadContentSignature(payload) {
-      const sorted = (records = []) => records.map((record) => ({ ...record, tags: Array.isArray(record.tags) ? [...record.tags] : record.tags })).sort((a, b) => String(a.id).localeCompare(String(b.id)));
+      const sorted = (records = []) => records.map((record) => {
+        const normalized = normalizePrompt(record);
+        const serialized = normalized ? serializePrompt(normalized) : record;
+        return { ...serialized, tags: Array.isArray(serialized.tags) ? [...serialized.tags] : serialized.tags };
+      }).sort((a, b) => String(a.id).localeCompare(String(b.id)));
       return JSON.stringify({
         prompts: sorted(payload.prompts),
         trash: sorted(payload.trash),

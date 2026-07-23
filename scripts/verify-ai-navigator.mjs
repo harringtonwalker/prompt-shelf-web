@@ -34,6 +34,47 @@ const state = {
 };
 const { assertNoSecretLikeData, mergeAIChatsPayload } = runtime(state, () => 'generated-id');
 
+const promptRuntime = new Function('NOW', 'makeId', 'validUrl', `
+  ${between('function normalizeBoolean(', 'function normalizeAIChatMessage(')}
+  ${between('function normalizeTombstone(', 'function mergeConcurrentPayload(')}
+  return { normalizePrompt, serializePrompt, payloadContentSignature };
+`);
+const { normalizePrompt, serializePrompt, payloadContentSignature } = promptRuntime(1000, () => 'generated-id', (value) => String(value || ''));
+const legacyPrompt = {
+  id: 'prompt-legacy',
+  title: '兼容性测试',
+  category: 'other',
+  content: '保持旧版标签页可读写',
+  tags: [],
+  source: '',
+  favorite: false,
+  assistant: false,
+  usageCount: 0,
+  createdAt: 100,
+  updatedAt: 100,
+  lastUsedAt: 0,
+  deletedAt: 0,
+  parentPromptId: '',
+  sourceType: 'manual',
+  aiMetadata: null,
+  revisions: []
+};
+const normalizedLegacy = normalizePrompt(legacyPrompt);
+const serializedLegacy = serializePrompt(normalizedLegacy);
+if ('aiSummary' in serializedLegacy || 'useCases' in serializedLegacy || 'metadataStatus' in serializedLegacy || 'metadataUpdatedAt' in serializedLegacy) {
+  errors.push('AI 能力元数据仍以旧版会丢弃的顶层字段写入');
+}
+if (serializedLegacy.aiMetadata !== null) errors.push('空白 AI 能力元数据不应制造远端差异');
+const defaultMetadataPrompt = { ...legacyPrompt, aiSummary: '', useCases: [], metadataStatus: 'waiting', metadataUpdatedAt: 0 };
+if (payloadContentSignature({ prompts: [legacyPrompt] }) !== payloadContentSignature({ prompts: [defaultMetadataPrompt] })) {
+  errors.push('旧版缺省字段与新版空白字段仍会触发重复同步');
+}
+const serializedEnriched = serializePrompt(normalizePrompt({ ...legacyPrompt, aiSummary: '快速说明用途', useCases: ['首次使用'], metadataStatus: 'ready', metadataUpdatedAt: 200 }));
+const restoredEnriched = normalizePrompt(serializedEnriched);
+if (serializedEnriched.aiMetadata?.capability?.summary !== '快速说明用途' || restoredEnriched.aiSummary !== '快速说明用途') {
+  errors.push('AI 能力元数据没有通过旧版可保留的 aiMetadata 兼容层往返');
+}
+
 mergeAIChatsPayload({
   version: 1,
   revision: 400,
@@ -95,5 +136,5 @@ if (errors.length) {
   console.error(errors.map((error) => `- ${error}`).join('\n'));
   process.exitCode = 1;
 } else {
-  console.log('AI Navigator regression OK: credential blocking, concurrent message merge, deletion tombstones, public export boundary, and blank template.');
+  console.log('AI Navigator regression OK: credential blocking, concurrent message merge, deletion tombstones, stale-tab metadata compatibility, public export boundary, and blank template.');
 }
