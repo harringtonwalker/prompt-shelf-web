@@ -1,6 +1,6 @@
-# Prompt Shelf Web
+# Prompt & Skill Shelf
 
-Prompt Shelf 是一个可直接部署到 GitHub Pages 的提示词与 Skill 工作台。
+Prompt & Skill Shelf 是一个可直接部署到 GitHub Pages 的提示词与 Skill 私有工作台。
 
 - 在线入口：<https://harringtonwalker.github.io/prompt-shelf-web/>
 - 同一个 UI 提供“提示词”和“Skill”两种模式
