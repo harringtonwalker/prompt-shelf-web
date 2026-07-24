@@ -2290,6 +2290,7 @@
     const GITHUB_AI_CHATS_PATH = 'data/ai-chats.json';
     const GITHUB_SYNC_INTERVAL = 30000;
     const GITHUB_PUBLIC_REFRESH_INTERVAL = 120000;
+    const RECENTLY_ADDED_LIMIT = 10;
     const HOSTED_MODE = /^https?:$/i.test(location.protocol);
     const WALKER_DEPLOYMENT = location.hostname.toLowerCase() === 'harringtonwalker.github.io' && location.pathname.split('/').filter(Boolean)[0] === 'prompt-shelf-web';
     const NOW = Date.now();
@@ -3155,7 +3156,7 @@
         return false;
       }
       if (options.render !== false) renderAINavigator();
-      scheduleGithubSync(options.delay ?? 120);
+      if (options.sync !== false) scheduleGithubSync(options.delay ?? 120);
       return true;
     }
     function normalizeCategory(category) {
@@ -3525,15 +3526,19 @@
       return githubRequest(githubContentPath(state.githubConfig.aiChatsPath), { method: 'PUT', body });
     }
     async function syncAIChatsWithGithub() {
+      if (state.aiNavigatorBusy) return false;
       try {
         const remote = await readGithubAIChatsRecord({ token: state.githubToken, allowMissing: true });
+        if (state.aiNavigatorBusy) return false;
         state.aiChatsSha = remote.sha;
         if (state.aiChatsDirty) {
           mergeAIChatsPayload(remote.payload);
           const outbound = aiChatsPayload();
+          const synchronizedRevision = state.aiChatsRevision;
+          const synchronizedSignature = JSON.stringify(outbound);
           const written = await writeGithubAIChatsRecord(state.aiChatsSha, outbound);
           state.aiChatsSha = String(written?.content?.sha || state.aiChatsSha);
-          state.aiChatsDirty = false;
+          state.aiChatsDirty = state.aiChatsRevision !== synchronizedRevision || JSON.stringify(aiChatsPayload()) !== synchronizedSignature;
         } else {
           applyAIChatsPayload(remote.payload);
         }
@@ -3595,7 +3600,7 @@
               } catch (skillError) {
                 state.skillsError = githubErrorText(skillError);
               }
-              await syncAIChatsWithGithub();
+              if (!state.aiNavigatorBusy) await syncAIChatsWithGithub();
             } else {
               state.skills = [];
               state.skillCategories = [];
@@ -3644,7 +3649,7 @@
             state.githubLastSyncAt = Date.now(); state.githubStatus = state.githubDirty || state.aiChatsDirty ? 'syncing' : state.githubToken && state.githubReady ? 'synced' : 'readonly'; state.githubError = '';
             persistMergedGithubState();
             if (state.fileHandle && state.fileSyncReady) await writeDataFile(false);
-            if (state.githubDirty || state.aiChatsDirty) scheduleGithubSync(80);
+            if (state.githubDirty || (state.aiChatsDirty && !state.aiNavigatorBusy)) scheduleGithubSync(80);
             if (options.showFeedback && !state.githubDirty && !state.aiChatsDirty) toast(state.githubToken ? `私有工作区已同步：${state.prompts.length} 条提示词，${state.skills.length} 个 Skill，${persistedAIChatCount()} 段 AI 对话` : '已读取公共空白模板');
             return true;
           } catch (error) {
@@ -4732,7 +4737,8 @@ JSON 格式：{"status":"clarifying|generated","understandingProgress":0,"questi
       }).filter((match) => match.score > 0).sort((a, b) => b.score - a.score).slice(0, 8).map((match) => match.item) : [];
       return { prompts: promptMatches, skills: skillMatches };
     }
-    function activeAIChat() { return state.aiChats.find((chat) => chat.id === state.activeAIChatId) || null; }
+    function findAIChatById(id) { return state.aiChats.find((chat) => chat.id === id) || null; }
+    function activeAIChat() { return findAIChatById(state.activeAIChatId); }
     function newAINavigatorChat(context = null) {
       state.aiChats = state.aiChats.filter((chat) => chat.messages.length || chat.id === state.activeAIChatId);
       const now = Date.now();
@@ -4885,35 +4891,49 @@ JSON 格式：{"status":"clarifying|generated","understandingProgress":0,"questi
         return;
       }
       const chat = ensureActiveAIChat();
+      const chatId = chat.id;
       const now = Date.now();
       if (!chat.messages.length && chat.title === '新对话') chat.title = question.replace(/\s+/g, ' ').slice(0, 24) || '新对话';
       chat.scope = state.aiNavigatorScope; chat.context = state.aiNavigatorContext;
       chat.messages.push(normalizeAIChatMessage({ id: makeId(), role: 'user', content: question, createdAt: now }));
       chat.updatedAt = now;
       $('aiNavigatorInput').value = ''; $('aiNavigatorInput').style.height = '';
-      saveAIChatsLocal({ render: false });
+      saveAIChatsLocal({ render: false, sync: false });
       const retrieval = retrieveAIAssets(question, chat.scope, chat.context);
       const sources = [...retrieval.prompts, ...retrieval.skills].map((item) => ({ type: item.type, id: item.id, name: item.name }));
       state.aiNavigatorBusy = true; state.aiNavigatorStreamingText = ''; renderAINavigator();
       try {
         const output = await callAINavigatorAI(chat, question, retrieval, (delta, full) => {
-          if (activeAIChat()?.id !== chat.id) return;
+          if (activeAIChat()?.id !== chatId) return;
           state.aiNavigatorStreamingText = full;
           renderAINavigatorMessages();
         });
-        if (!state.aiChats.some((item) => item.id === chat.id)) return;
+        const liveChat = findAIChatById(chatId);
+        if (!liveChat) return;
         let assistantContent = String(output || '').trim() || 'AI 没有返回可显示的内容，请重试。';
         try {
           assertNoSecretLikeData(assistantContent);
         } catch {
           assistantContent = 'AI 返回内容中包含疑似凭据，已为安全起见阻止显示和保存。';
         }
-        chat.messages.push(normalizeAIChatMessage({ id: makeId(), role: 'assistant', content: assistantContent, createdAt: Date.now(), sources }));
-        chat.updatedAt = Date.now();
+        liveChat.messages.push(normalizeAIChatMessage({ id: makeId(), role: 'assistant', content: assistantContent, createdAt: Date.now(), sources }));
+        liveChat.updatedAt = Date.now();
       } catch (error) {
-        if (error?.name !== 'AbortError' && state.aiChats.some((item) => item.id === chat.id)) {
-          chat.messages.push(normalizeAIChatMessage({ id: makeId(), role: 'assistant', content: `本次连接未完成：${safeAIError(error)}`, createdAt: Date.now(), error: true }));
-          chat.updatedAt = Date.now();
+        const liveChat = findAIChatById(chatId);
+        if (liveChat) {
+          const partial = String(state.aiNavigatorStreamingText || '').trim();
+          let assistantContent = partial
+            ? `${partial}\n\n（${error?.name === 'AbortError' ? '回复已停止' : '连接已中断'}，以上内容已保存，可以继续追问。）`
+            : error?.name === 'AbortError'
+              ? '本次生成已停止。你的问题和之前的对话记录已经保存，可以重新发送。'
+              : `本次连接未完成：${safeAIError(error)}`;
+          try {
+            assertNoSecretLikeData(assistantContent);
+          } catch {
+            assistantContent = 'AI 返回内容中包含疑似凭据，已为安全起见阻止显示和保存。';
+          }
+          liveChat.messages.push(normalizeAIChatMessage({ id: makeId(), role: 'assistant', content: assistantContent, createdAt: Date.now(), error: true }));
+          liveChat.updatedAt = Date.now();
         }
       } finally {
         state.aiNavigatorAbortController = null; state.aiNavigatorBusy = false; state.aiNavigatorStreamingText = '';
@@ -5010,7 +5030,8 @@ JSON 格式：{"status":"clarifying|generated","understandingProgress":0,"questi
         { id: 'assistant', name: '总助', icon: 'crown', count: state.prompts.filter((prompt) => prompt.assistant).length },
         { id: 'all', name: '全部提示词', icon: 'folder', count: state.prompts.length },
         { id: 'favorites', name: '我的收藏', icon: 'heart', count: state.prompts.filter((prompt) => prompt.favorite).length },
-        { id: 'recent', name: '最近使用', icon: 'clock', count: state.prompts.filter((prompt) => prompt.lastUsedAt).length }
+        { id: 'recent', name: '最近使用', icon: 'clock', count: state.prompts.filter((prompt) => prompt.lastUsedAt).length },
+        { id: 'newest', name: '最近添加', icon: 'plus', count: Math.min(state.prompts.length, RECENTLY_ADDED_LIMIT), hint: `按创建时间查看最近添加的 ${RECENTLY_ADDED_LIMIT} 条提示词` }
       ];
       $('primaryNav').innerHTML = primary.map((item) => navHTML(item)).join('');
       $('categoryList').innerHTML = state.categories.map((item) => categoryHTML(item)).join('');
@@ -5021,7 +5042,7 @@ JSON 格式：{"status":"clarifying|generated","understandingProgress":0,"questi
       }));
     }
     function navHTML(item) {
-      return `<button class="nav-item ${item.id === 'assistant' ? 'assistant-nav' : ''} ${state.filter === item.id ? 'active' : ''}" type="button" data-filter="${escapeHTML(item.id)}" aria-current="${state.filter === item.id ? 'page' : 'false'}">${icon(item.icon)}<span class="nav-copy">${escapeHTML(item.name)}</span><span class="item-count">${item.count}</span></button>`;
+      return `<button class="nav-item ${item.id === 'assistant' ? 'assistant-nav' : ''} ${state.filter === item.id ? 'active' : ''}" type="button" data-filter="${escapeHTML(item.id)}" aria-current="${state.filter === item.id ? 'page' : 'false'}"${item.hint ? ` title="${escapeHTML(item.hint)}"` : ''}>${icon(item.icon)}<span class="nav-copy">${escapeHTML(item.name)}</span><span class="item-count">${item.count}</span></button>`;
     }
     function categoryHTML(item) {
       return `<button class="category-item ${state.filter === item.id ? 'active' : ''}" type="button" data-filter="${escapeHTML(item.id)}" aria-current="${state.filter === item.id ? 'page' : 'false'}">${icon('folder')}<span class="category-copy">${escapeHTML(item.name)}</span><span class="item-count">${getCategoryCount(item.id)}</span></button>`;
@@ -5060,7 +5081,7 @@ JSON 格式：{"status":"clarifying|generated","understandingProgress":0,"questi
         if (state.filter === 'assistant' && !prompt.assistant) return false;
         if (state.filter === 'favorites' && !prompt.favorite) return false;
         if (state.filter === 'recent' && !prompt.lastUsedAt) return false;
-        if (!['all', 'assistant', 'favorites', 'recent'].includes(state.filter) && prompt.category !== state.filter) return false;
+        if (!['all', 'assistant', 'favorites', 'recent', 'newest'].includes(state.filter) && prompt.category !== state.filter) return false;
         if (state.qualityFilter === 'assistant' && !prompt.assistant) return false;
         if (state.qualityFilter === 'uncategorized' && prompt.category !== 'other') return false;
         if (state.qualityFilter === 'no-tags' && prompt.tags.length) return false;
@@ -5069,6 +5090,7 @@ JSON 格式：{"status":"clarifying|generated","understandingProgress":0,"questi
         if (!query) return true;
         return normalize([prompt.title, prompt.content, prompt.note, prompt.aiSummary, (prompt.useCases || []).join(' '), prompt.tags.join(' '), categoryName(prompt.category)].join(' ')).includes(query);
       });
+      if (state.filter === 'newest') return prompts.sort((a, b) => (b.createdAt - a.createdAt) || (b.updatedAt - a.updatedAt)).slice(0, RECENTLY_ADDED_LIMIT);
       prompts.sort((a, b) => {
         if (state.sort === 'priority-desc') return (Number(b.assistant) - Number(a.assistant)) || (b.usageCount - a.usageCount) || (b.updatedAt - a.updatedAt);
         if (state.sort === 'title-asc') return a.title.localeCompare(b.title, 'zh-CN');
@@ -5082,6 +5104,7 @@ JSON 格式：{"status":"clarifying|generated","understandingProgress":0,"questi
       if (state.filter === 'assistant') return '总助';
       if (state.filter === 'favorites') return '我的收藏';
       if (state.filter === 'recent') return '最近使用';
+      if (state.filter === 'newest') return '最近添加';
       if (state.filter === 'all') return '全部提示词';
       return categoryName(state.filter);
     }
@@ -5196,7 +5219,7 @@ JSON 格式：{"status":"clarifying|generated","understandingProgress":0,"questi
       if (id === 'categoryModal') cancelCategoryDeletion();
       if (id === 'aiStudioModal' && state.aiAbortController) { state.aiAbortController.abort(); state.aiAbortController = null; setAIStudioBusy(false); }
       if (id === 'promptGuideModal') { state.promptGuideAbortController?.abort(); state.promptGuideAbortController = null; state.promptGuideSession = null; }
-      if (id === 'aiNavigatorModal' && state.aiNavigatorAbortController) { state.aiNavigatorAbortController.abort(); state.aiNavigatorAbortController = null; state.aiNavigatorBusy = false; state.aiNavigatorStreamingText = ''; }
+      if (id === 'aiNavigatorModal' && state.aiNavigatorAbortController) state.aiNavigatorAbortController.abort();
       const openModals = [...document.querySelectorAll('.modal-backdrop')].filter((node) => !node.hidden);
       if (openModals.length) {
         const topId = state.modalFocusStack[state.modalFocusStack.length - 1]?.id;
@@ -5213,7 +5236,7 @@ JSON 格式：{"status":"clarifying|generated","understandingProgress":0,"questi
       const returnFocus = state.modalFocusStack[0]?.focus;
       if (state.aiAbortController) { state.aiAbortController.abort(); state.aiAbortController = null; }
       if (state.promptGuideAbortController) { state.promptGuideAbortController.abort(); state.promptGuideAbortController = null; }
-      if (state.aiNavigatorAbortController) { state.aiNavigatorAbortController.abort(); state.aiNavigatorAbortController = null; state.aiNavigatorBusy = false; state.aiNavigatorStreamingText = ''; }
+      if (state.aiNavigatorAbortController) state.aiNavigatorAbortController.abort();
       document.querySelectorAll('.modal-backdrop').forEach((node) => { node.hidden = true; node.inert = false; node.style.zIndex = ''; });
       $('appShell').inert = false; document.body.style.overflow = ''; state.modalFocusStack = []; state.promptGuideSession = null; resetPromptFormatDraft(); returnFocus?.focus?.();
     }
