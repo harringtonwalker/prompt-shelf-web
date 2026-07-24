@@ -204,6 +204,17 @@
     }
     .nav-item:hover, .category-item:hover { background: rgba(255,255,255,.78); transform: translateX(2px); }
     .nav-item.active, .category-item.active { color: var(--accent-deep); background: var(--accent-soft); font-weight: 730; }
+    .category-item.category-drop-ready {
+      border: 1px dashed rgba(217,95,63,.48);
+      background: rgba(255,255,255,.82);
+    }
+    .category-item.category-drop-target {
+      color: var(--accent-deep);
+      border-color: var(--accent);
+      background: var(--accent-soft);
+      box-shadow: 0 0 0 4px rgba(217,95,63,.12);
+      transform: translateX(5px);
+    }
     .nav-item svg, .category-item svg { width: 16px; height: 16px; flex: 0 0 auto; opacity: .82; }
     .nav-copy, .category-copy { min-width: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .category-bilingual { display: flex; align-items: baseline; gap: 6px; }
@@ -392,6 +403,7 @@
 
     .prompt-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
     .prompt-card {
+      position: relative;
       min-width: 0;
       min-height: 246px;
       display: flex;
@@ -405,8 +417,55 @@
       transition: transform .25s var(--ease), box-shadow .25s var(--ease), border-color .25s var(--ease), background .25s var(--ease);
       animation: card-in .4s var(--ease) both;
     }
+    .prompt-card::after {
+      content: "";
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: 7px;
+      height: 3px;
+      border-radius: 99px;
+      background: var(--accent);
+      opacity: 0;
+      transform: scaleX(0);
+      transform-origin: left;
+    }
     .prompt-card:hover { transform: translateY(-3px); border-color: var(--line-strong); background: var(--paper-strong); box-shadow: 0 6px 8px rgba(51,43,32,.08); }
     .prompt-card:focus-visible { outline: 3px solid rgba(217,95,63,.26); outline-offset: 2px; }
+    .prompt-grid.category-drag-enabled .prompt-card { cursor: grab; }
+    .prompt-card.is-long-pressing {
+      border-color: rgba(217,95,63,.56);
+      box-shadow: 0 0 0 4px rgba(217,95,63,.09);
+      transform: translateY(-2px);
+    }
+    .prompt-card.is-long-pressing::after {
+      opacity: 1;
+      transform: scaleX(1);
+      transition: transform .6s linear;
+    }
+    .prompt-card.is-category-drag-source {
+      opacity: .48;
+      border-color: var(--accent);
+      box-shadow: none;
+      transform: scale(.985);
+    }
+    body.is-prompt-category-dragging, body.is-prompt-category-dragging * { cursor: grabbing !important; }
+    .prompt-drag-ghost {
+      position: fixed;
+      z-index: 80;
+      width: min(250px, calc(100vw - 28px));
+      padding: 12px 14px;
+      border: 1px solid rgba(217,95,63,.5);
+      border-radius: 13px;
+      color: var(--ink);
+      background: rgba(255,253,249,.96);
+      box-shadow: 0 16px 38px rgba(51,43,32,.2);
+      pointer-events: none;
+      transform: rotate(1deg);
+    }
+    .prompt-drag-ghost span { display: block; margin-bottom: 4px; color: var(--accent-deep); font-size: 10px; font-weight: 800; letter-spacing: .08em; }
+    .prompt-drag-ghost strong { display: block; overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+    .prompt-drag-ghost small { display: block; margin-top: 5px; color: var(--ink-faint); font-size: 11px; }
     @keyframes card-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
     .card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 16px; }
     .category-chip, .tag {
@@ -422,10 +481,12 @@
       text-overflow: ellipsis;
     }
     .category-chip { color: var(--sage); background: var(--sage-soft); }
-    .favorite-btn { flex: 0 0 auto; width: 29px; height: 29px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--ink-faint); cursor: pointer; }
-    .favorite-btn:hover { color: var(--accent); background: var(--accent-soft); }
-    .favorite-btn.active { color: var(--accent); }
-    .favorite-btn svg { width: 16px; height: 16px; }
+    .card-quick-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 2px; }
+    .favorite-btn, .category-pin-btn { flex: 0 0 auto; width: 29px; height: 29px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--ink-faint); cursor: pointer; }
+    .favorite-btn:hover, .category-pin-btn:hover { color: var(--accent); background: var(--accent-soft); }
+    .favorite-btn.active, .category-pin-btn.active { color: var(--accent); background: var(--accent-soft); }
+    .favorite-btn svg, .category-pin-btn svg { width: 16px; height: 16px; }
+    .category-pin-btn.active svg { stroke-width: 2.2; }
     .card-title { display: -webkit-box; overflow: hidden; margin-bottom: 8px; font-family: var(--display-font); font-size: 21px; font-weight: 600; letter-spacing: -.045em; line-height: 1.25; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
     .card-excerpt { display: -webkit-box; overflow: hidden; flex: 1; margin-bottom: 16px; color: var(--ink-soft); font-size: 13px; line-height: 1.72; -webkit-box-orient: vertical; -webkit-line-clamp: 4; }
     .card-tags { display: flex; flex-wrap: wrap; gap: 5px; min-height: 23px; margin-bottom: 16px; }
@@ -1060,7 +1121,7 @@
       .list-view .card-top { margin-bottom: 2px; }
       .list-view .card-bottom { justify-content: flex-start; }
       .icon-btn { width: 44px; height: 44px; }
-      .favorite-btn, .selection-toggle { width: 44px; height: 44px; }
+      .favorite-btn, .category-pin-btn, .selection-toggle { width: 44px; height: 44px; }
       .card-copy { min-height: 44px; padding-inline: 8px; }
     }
     @media (max-width: 540px) {
@@ -2241,6 +2302,7 @@
       copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="11" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h1"/></svg>',
       heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 8.7c0 5.2-8.8 10.3-8.8 10.3S3.2 13.9 3.2 8.7A4.7 4.7 0 0 1 12 6.3a4.7 4.7 0 0 1 8.8 2.4Z"/></svg>',
       heartFill: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.8 8.7c0 5.2-8.8 10.3-8.8 10.3S3.2 13.9 3.2 8.7A4.7 4.7 0 0 1 12 6.3a4.7 4.7 0 0 1 8.8 2.4Z"/></svg>',
+      pinTop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5h14"/><path d="M12 19V8"/><path d="m8 12 4-4 4 4"/></svg>',
       grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg>',
       list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 6h14M5 12h14M5 18h14"/></svg>',
       spark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5L12 3Z"/><path d="m19 16 .7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7L19 16Z"/></svg>',
@@ -2291,6 +2353,8 @@
     const GITHUB_SYNC_INTERVAL = 30000;
     const GITHUB_PUBLIC_REFRESH_INTERVAL = 120000;
     const RECENTLY_ADDED_LIMIT = 10;
+    const PROMPT_CATEGORY_LONG_PRESS_MS = 600;
+    const PROMPT_CATEGORY_MOVE_TOLERANCE = 8;
     const HOSTED_MODE = /^https?:$/i.test(location.protocol);
     const WALKER_DEPLOYMENT = location.hostname.toLowerCase() === 'harringtonwalker.github.io' && location.pathname.split('/').filter(Boolean)[0] === 'prompt-shelf-web';
     const NOW = Date.now();
@@ -2465,6 +2529,19 @@
     };
 
     const $ = (id) => document.getElementById(id);
+    const promptCategoryDrag = {
+      timer: null,
+      active: false,
+      pointerId: null,
+      promptId: '',
+      startX: 0,
+      startY: 0,
+      card: null,
+      ghost: null,
+      target: null,
+      suppressClickId: '',
+      suppressClickUntil: 0
+    };
     const escapeHTML = (value = '') => String(value).replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
     const normalize = (value = '') => value.toLocaleLowerCase('zh-CN').replace(/\s+/g, ' ').trim();
     const makeId = () => (crypto?.randomUUID ? crypto.randomUUID() : `p-${Date.now()}-${Math.random().toString(16).slice(2)}`);
@@ -2748,8 +2825,18 @@
       incoming.forEach((prompt) => {
         const existing = byKey.get(promptKey(prompt));
         if (existing) {
-          const preserved = { id: existing.id, favorite: existing.favorite, usageCount: existing.usageCount, createdAt: existing.createdAt, lastUsedAt: existing.lastUsedAt };
-          Object.assign(existing, prompt, preserved, { updatedAt: Date.now() });
+          const organizationChanged = existing.category !== prompt.category;
+          const mutationAt = Date.now();
+          const preserved = {
+            id: existing.id,
+            favorite: existing.favorite,
+            usageCount: existing.usageCount,
+            categoryPinnedAt: organizationChanged ? 0 : existing.categoryPinnedAt,
+            organizationRevision: organizationChanged ? mutationAt : existing.organizationRevision,
+            createdAt: existing.createdAt,
+            lastUsedAt: existing.lastUsedAt
+          };
+          Object.assign(existing, prompt, preserved, { updatedAt: mutationAt });
           updated += 1;
         } else {
           state.prompts.unshift(prompt);
@@ -2796,7 +2883,7 @@
       let clock = Math.max(Date.now(), Number(state.revision || 0), Number(state.categoryRevision || 0));
       const include = (value) => { clock = Math.max(clock, Number(value || 0)); };
       [...state.prompts, ...state.trash].forEach((record) => {
-        include(record.createdAt); include(record.updatedAt); include(record.deletedAt); include(record.lastUsedAt);
+        include(record.createdAt); include(record.updatedAt); include(record.organizationRevision); include(record.categoryPinnedAt); include(record.deletedAt); include(record.lastUsedAt);
       });
       state.purged.forEach((item) => include(item.purgedAt));
       state.categoryPurged.forEach((item) => include(item.purgedAt));
@@ -3002,6 +3089,10 @@
       if (!prompt || !prompt.title || !prompt.content) return null;
       const aiMetadata = prompt.aiMetadata && typeof prompt.aiMetadata === 'object' ? { ...prompt.aiMetadata } : null;
       const capability = aiMetadata?.capability && typeof aiMetadata.capability === 'object' ? aiMetadata.capability : {};
+      const organization = aiMetadata?.organization && typeof aiMetadata.organization === 'object' ? aiMetadata.organization : {};
+      const hasTopLevelPin = Object.prototype.hasOwnProperty.call(prompt, 'categoryPinnedAt');
+      const categoryPinnedAt = Number(hasTopLevelPin ? prompt.categoryPinnedAt : (Object.prototype.hasOwnProperty.call(organization, 'categoryPinnedAt') ? organization.categoryPinnedAt : 0));
+      const organizationRevision = Number(Object.prototype.hasOwnProperty.call(prompt, 'organizationRevision') ? prompt.organizationRevision : (organization.revision || categoryPinnedAt || 0));
       const aiSummary = String(prompt.aiSummary || capability.summary || prompt.purpose || '').trim().slice(0, 320);
       const useCasesInput = Array.isArray(prompt.useCases) && prompt.useCases.length ? prompt.useCases : capability.useCases;
       const useCases = Array.isArray(useCasesInput) ? useCasesInput.map(String).map((item) => item.trim()).filter(Boolean).slice(0, 8) : [];
@@ -3018,6 +3109,8 @@
         favorite: normalizeBoolean(prompt.favorite ?? prompt.isFavorite),
         assistant: normalizeBoolean(prompt.assistant ?? prompt.isAssistant ?? prompt.totalAssistant),
         usageCount: Number(prompt.usageCount || 0),
+        categoryPinnedAt,
+        organizationRevision,
         createdAt: Number(prompt.createdAt || NOW),
         updatedAt: Number(prompt.updatedAt || NOW),
         lastUsedAt: Number(prompt.lastUsedAt || 0),
@@ -3033,9 +3126,14 @@
       };
     }
     function serializePrompt(prompt) {
-      const { aiSummary, useCases, metadataStatus, metadataUpdatedAt, ...record } = prompt;
+      const { aiSummary, useCases, metadataStatus, metadataUpdatedAt, categoryPinnedAt, organizationRevision, ...record } = prompt;
       const metadata = record.aiMetadata && typeof record.aiMetadata === 'object' ? { ...record.aiMetadata } : {};
+      const organization = metadata.organization && typeof metadata.organization === 'object' ? { ...metadata.organization } : {};
       delete metadata.capability;
+      delete metadata.organization;
+      delete organization.category;
+      delete organization.categoryPinnedAt;
+      delete organization.revision;
       const summary = String(aiSummary || '').trim().slice(0, 320);
       const scenarios = Array.isArray(useCases) ? useCases.map(String).map((item) => item.trim()).filter(Boolean).slice(0, 8) : [];
       const status = ['ready','pending','waiting','failed'].includes(metadataStatus) ? metadataStatus : (summary ? 'ready' : 'waiting');
@@ -3043,6 +3141,14 @@
       if (summary || scenarios.length || status !== 'waiting' || updatedAt) {
         metadata.capability = { summary, useCases: scenarios, status, updatedAt };
       }
+      if (Number(organizationRevision || 0)) {
+        metadata.organization = {
+          ...organization,
+          category: String(record.category || 'other'),
+          categoryPinnedAt: Number(categoryPinnedAt || 0),
+          revision: Number(organizationRevision)
+        };
+      } else if (Object.keys(organization).length) metadata.organization = organization;
       record.aiMetadata = Object.keys(metadata).length ? metadata : null;
       return record;
     }
@@ -3204,8 +3310,22 @@
         if (!current || item.purgedAt > current.purgedAt) tombstones.set(item.id, item);
       });
       const records = new Map();
+      const organizationStates = new Map();
       const add = (record, location) => {
         const normalized = normalizePrompt(record); if (!normalized) return;
+        const organizationRevision = Number(normalized.organizationRevision || 0);
+        if (organizationRevision) {
+          const organizationSignature = JSON.stringify({ category: normalized.category, categoryPinnedAt: Number(normalized.categoryPinnedAt || 0) });
+          const currentOrganization = organizationStates.get(normalized.id);
+          if (!currentOrganization || organizationRevision > currentOrganization.revision || (organizationRevision === currentOrganization.revision && organizationSignature > currentOrganization.signature)) {
+            organizationStates.set(normalized.id, {
+              category: normalized.category,
+              categoryPinnedAt: Number(normalized.categoryPinnedAt || 0),
+              revision: organizationRevision,
+              signature: organizationSignature
+            });
+          }
+        }
         const current = records.get(normalized.id); const clock = recordClock(normalized); const signature = JSON.stringify({ ...normalized, tags: [...normalized.tags] });
         if (!current || clock > current.clock || (clock === current.clock && signature > current.signature)) records.set(normalized.id, { record: normalized, location, clock, signature });
       };
@@ -3214,7 +3334,15 @@
       state.prompts.forEach((record) => add(record, 'active'));
       state.trash.forEach((record) => add(record, 'trash'));
       state.purged = [...tombstones.values()];
-      const surviving = [...records.values()].filter((item) => !tombstones.has(item.record.id));
+      const surviving = [...records.values()].filter((item) => !tombstones.has(item.record.id)).map((item) => {
+        const organization = organizationStates.get(item.record.id);
+        if (organization) {
+          item.record.category = organization.category;
+          item.record.categoryPinnedAt = organization.categoryPinnedAt;
+          item.record.organizationRevision = organization.revision;
+        }
+        return item;
+      });
       state.prompts = surviving.filter((item) => item.location === 'active').map((item) => item.record);
       state.trash = surviving.filter((item) => item.location === 'trash').map((item) => item.record);
       const categoryTombstones = new Map();
@@ -5045,7 +5173,7 @@ JSON 格式：{"status":"clarifying|generated","understandingProgress":0,"questi
       return `<button class="nav-item ${item.id === 'assistant' ? 'assistant-nav' : ''} ${state.filter === item.id ? 'active' : ''}" type="button" data-filter="${escapeHTML(item.id)}" aria-current="${state.filter === item.id ? 'page' : 'false'}"${item.hint ? ` title="${escapeHTML(item.hint)}"` : ''}>${icon(item.icon)}<span class="nav-copy">${escapeHTML(item.name)}</span><span class="item-count">${item.count}</span></button>`;
     }
     function categoryHTML(item) {
-      return `<button class="category-item ${state.filter === item.id ? 'active' : ''}" type="button" data-filter="${escapeHTML(item.id)}" aria-current="${state.filter === item.id ? 'page' : 'false'}">${icon('folder')}<span class="category-copy">${escapeHTML(item.name)}</span><span class="item-count">${getCategoryCount(item.id)}</span></button>`;
+      return `<button class="category-item ${state.filter === item.id ? 'active' : ''}" type="button" data-filter="${escapeHTML(item.id)}" data-category-drop="${escapeHTML(item.id)}" aria-current="${state.filter === item.id ? 'page' : 'false'}">${icon('folder')}<span class="category-copy">${escapeHTML(item.name)}</span><span class="item-count">${getCategoryCount(item.id)}</span></button>`;
     }
 
     function similarityText(prompt) { return normalize(`${prompt.title} ${prompt.content}`).replace(/[\s\p{P}\p{S}]+/gu, ''); }
@@ -5091,7 +5219,12 @@ JSON 格式：{"status":"clarifying|generated","understandingProgress":0,"questi
         return normalize([prompt.title, prompt.content, prompt.note, prompt.aiSummary, (prompt.useCases || []).join(' '), prompt.tags.join(' '), categoryName(prompt.category)].join(' ')).includes(query);
       });
       if (state.filter === 'newest') return prompts.sort((a, b) => (b.createdAt - a.createdAt) || (b.updatedAt - a.updatedAt)).slice(0, RECENTLY_ADDED_LIMIT);
+      const categoryBoardActive = state.categories.some((category) => category.id === state.filter);
       prompts.sort((a, b) => {
+        if (categoryBoardActive) {
+          const pinOrder = Number(b.categoryPinnedAt || 0) - Number(a.categoryPinnedAt || 0);
+          if (pinOrder) return pinOrder;
+        }
         if (state.sort === 'priority-desc') return (Number(b.assistant) - Number(a.assistant)) || (b.usageCount - a.usageCount) || (b.updatedAt - a.updatedAt);
         if (state.sort === 'title-asc') return a.title.localeCompare(b.title, 'zh-CN');
         if (state.sort === 'created-desc') return b.createdAt - a.createdAt;
@@ -5122,6 +5255,7 @@ JSON 格式：{"status":"clarifying|generated","understandingProgress":0,"questi
       $('resultsMeta').textContent = state.query ? `找到 ${prompts.length} 条结果` : `${prompts.length} 条结果`;
       const grid = $('promptGrid');
       grid.classList.toggle('list-view', state.view === 'list');
+      grid.classList.toggle('category-drag-enabled', canEdit() && state.filter === 'all' && !state.selectionMode);
       if (!prompts.length) {
         const hasData = state.prompts.length > 0;
         grid.innerHTML = `<div class="empty-state" style="grid-column: 1 / -1;">
@@ -5137,21 +5271,154 @@ JSON 格式：{"status":"clarifying|generated","understandingProgress":0,"questi
         return;
       }
       grid.innerHTML = prompts.map((prompt, index) => cardHTML(prompt, index)).join('');
-      grid.querySelectorAll('[data-prompt-card]').forEach((card) => card.addEventListener('click', () => state.selectionMode ? toggleSelection(card.dataset.promptCard) : openDetail(card.dataset.promptCard)));
+      grid.querySelectorAll('[data-prompt-card]').forEach((card) => {
+        card.addEventListener('pointerdown', handlePromptCategoryPointerDown);
+        card.addEventListener('click', (event) => {
+          if (shouldSuppressPromptCardClick(card.dataset.promptCard)) { event.preventDefault(); event.stopPropagation(); return; }
+          state.selectionMode ? toggleSelection(card.dataset.promptCard) : openDetail(card.dataset.promptCard);
+        });
+      });
       grid.querySelectorAll('[data-card-copy]').forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); copyPrompt(button.dataset.cardCopy); }));
       grid.querySelectorAll('[data-card-favorite]').forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); toggleFavorite(button.dataset.cardFavorite); }));
+      grid.querySelectorAll('[data-card-pin]').forEach((button) => button.addEventListener('click', (event) => { event.stopPropagation(); toggleCategoryPin(button.dataset.cardPin); }));
     }
     function cardHTML(prompt, index) {
       const excerpt = prompt.content.replace(/\s+/g, ' ').trim();
       const tags = prompt.tags.slice(0, 3).map((tag) => `<span class="tag">${escapeHTML(tag)}</span>`).join('');
       const selected = state.selected.has(prompt.id);
-      return `<article class="prompt-card ${prompt.assistant ? 'is-assistant' : ''} ${selected ? 'selected' : ''}" data-prompt-card="${escapeHTML(prompt.id)}" tabindex="0" aria-selected="${selected}" style="animation-delay:${Math.min(index * 35, 240)}ms">
-        <div class="card-top"><div class="card-chip-row">${state.selectionMode ? `<button class="selection-toggle" type="button" aria-label="${selected ? '取消选择' : '选择'} ${escapeHTML(prompt.title)}"></button>` : ''}<span class="category-chip">${escapeHTML(categoryName(prompt.category))}</span>${prompt.assistant ? `<span class="assistant-badge">${icon('crown')}总助</span>` : ''}</div>${canEdit() ? `<button class="favorite-btn ${prompt.favorite ? 'active' : ''}" type="button" data-card-favorite="${escapeHTML(prompt.id)}" aria-label="${prompt.favorite ? '取消收藏' : '加入收藏'}" aria-pressed="${prompt.favorite}">${icon(prompt.favorite ? 'heartFill' : 'heart')}</button>` : ''}</div>
+      const dragHint = canEdit() && state.filter === 'all' && !state.selectionMode ? '长按约 0.6 秒，可拖到左侧一级类目' : '';
+      return `<article class="prompt-card ${prompt.assistant ? 'is-assistant' : ''} ${selected ? 'selected' : ''}" data-prompt-card="${escapeHTML(prompt.id)}" tabindex="0" aria-selected="${selected}"${dragHint ? ` title="${dragHint}"` : ''} style="animation-delay:${Math.min(index * 35, 240)}ms">
+        <div class="card-top"><div class="card-chip-row">${state.selectionMode ? `<button class="selection-toggle" type="button" aria-label="${selected ? '取消选择' : '选择'} ${escapeHTML(prompt.title)}"></button>` : ''}<span class="category-chip">${escapeHTML(categoryName(prompt.category))}</span>${prompt.assistant ? `<span class="assistant-badge">${icon('crown')}总助</span>` : ''}</div>${canEdit() ? `<div class="card-quick-actions"><button class="category-pin-btn ${prompt.categoryPinnedAt ? 'active' : ''}" type="button" data-card-pin="${escapeHTML(prompt.id)}" aria-label="${prompt.categoryPinnedAt ? `取消在“${escapeHTML(categoryName(prompt.category))}”置顶` : `置顶到“${escapeHTML(categoryName(prompt.category))}”首位`}" aria-pressed="${Boolean(prompt.categoryPinnedAt)}" title="${prompt.categoryPinnedAt ? `取消在“${escapeHTML(categoryName(prompt.category))}”置顶` : `置顶到“${escapeHTML(categoryName(prompt.category))}”首位`}">${icon('pinTop')}</button><button class="favorite-btn ${prompt.favorite ? 'active' : ''}" type="button" data-card-favorite="${escapeHTML(prompt.id)}" aria-label="${prompt.favorite ? '取消收藏' : '加入收藏'}" aria-pressed="${prompt.favorite}">${icon(prompt.favorite ? 'heartFill' : 'heart')}</button></div>` : ''}</div>
         <h3 class="card-title">${escapeHTML(prompt.title)}</h3>
         <p class="card-excerpt">${escapeHTML(excerpt)}</p>
         <div class="card-tags">${tags || '<span class="tag">未添加标签</span>'}</div>
         <div class="card-bottom"><span class="card-date">更新于 ${formatDate(prompt.updatedAt)}</span><button class="card-copy" type="button" data-card-copy="${escapeHTML(prompt.id)}">${icon('copy')}<span>复制提示词</span></button></div>
       </article>`;
+    }
+
+    function promptCategoryDragAvailable(event) {
+      if (!canEdit() || state.mode !== 'prompts' || state.filter !== 'all' || state.selectionMode) return false;
+      if (event.button !== 0 || (event.pointerType && event.pointerType !== 'mouse')) return false;
+      if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return false;
+      return !event.target.closest('button, a, input, textarea, select, [contenteditable="true"]');
+    }
+    function shouldSuppressPromptCardClick(promptId) {
+      return promptCategoryDrag.suppressClickId === promptId && Date.now() < promptCategoryDrag.suppressClickUntil;
+    }
+    function positionPromptDragGhost(clientX, clientY) {
+      if (!promptCategoryDrag.ghost) return;
+      const left = Math.max(12, Math.min(clientX + 18, window.innerWidth - 266));
+      const top = Math.max(12, Math.min(clientY + 18, window.innerHeight - 100));
+      promptCategoryDrag.ghost.style.left = `${left}px`;
+      promptCategoryDrag.ghost.style.top = `${top}px`;
+    }
+    function setPromptCategoryDropTarget(target) {
+      if (promptCategoryDrag.target === target) return;
+      promptCategoryDrag.target?.classList.remove('category-drop-target');
+      promptCategoryDrag.target = target;
+      promptCategoryDrag.target?.classList.add('category-drop-target');
+    }
+    function beginPromptCategoryDrag(clientX, clientY) {
+      if (!promptCategoryDrag.card?.isConnected) { resetPromptCategoryDrag(); return; }
+      promptCategoryDrag.active = true;
+      promptCategoryDrag.card.classList.remove('is-long-pressing');
+      promptCategoryDrag.card.classList.add('is-category-drag-source');
+      document.body.classList.add('is-prompt-category-dragging');
+      setSidebarSection('categorySectionToggle', 'categorySectionContent', true);
+      document.querySelectorAll('[data-category-drop]').forEach((node) => node.classList.add('category-drop-ready'));
+      const prompt = state.prompts.find((item) => item.id === promptCategoryDrag.promptId);
+      const ghost = document.createElement('div');
+      ghost.className = 'prompt-drag-ghost';
+      ghost.setAttribute('aria-hidden', 'true');
+      ghost.innerHTML = `<span>正在修改一级类目</span><strong>${escapeHTML(prompt?.title || '提示词')}</strong><small>拖到左侧类目，松手即可完成</small>`;
+      document.body.appendChild(ghost);
+      promptCategoryDrag.ghost = ghost;
+      positionPromptDragGhost(clientX, clientY);
+    }
+    function resetPromptCategoryDrag() {
+      clearTimeout(promptCategoryDrag.timer);
+      promptCategoryDrag.timer = null;
+      promptCategoryDrag.card?.classList.remove('is-long-pressing', 'is-category-drag-source');
+      promptCategoryDrag.ghost?.remove();
+      promptCategoryDrag.target?.classList.remove('category-drop-target');
+      document.querySelectorAll('[data-category-drop]').forEach((node) => node.classList.remove('category-drop-ready', 'category-drop-target'));
+      document.body.classList.remove('is-prompt-category-dragging');
+      if (promptCategoryDrag.card?.hasPointerCapture?.(promptCategoryDrag.pointerId)) promptCategoryDrag.card.releasePointerCapture(promptCategoryDrag.pointerId);
+      promptCategoryDrag.active = false;
+      promptCategoryDrag.pointerId = null;
+      promptCategoryDrag.promptId = '';
+      promptCategoryDrag.card = null;
+      promptCategoryDrag.ghost = null;
+      promptCategoryDrag.target = null;
+    }
+    function handlePromptCategoryPointerDown(event) {
+      if (!promptCategoryDragAvailable(event)) return;
+      resetPromptCategoryDrag();
+      const card = event.currentTarget;
+      promptCategoryDrag.pointerId = event.pointerId;
+      promptCategoryDrag.promptId = card.dataset.promptCard;
+      promptCategoryDrag.startX = event.clientX;
+      promptCategoryDrag.startY = event.clientY;
+      promptCategoryDrag.card = card;
+      card.classList.add('is-long-pressing');
+      card.setPointerCapture?.(event.pointerId);
+      promptCategoryDrag.timer = setTimeout(() => beginPromptCategoryDrag(event.clientX, event.clientY), PROMPT_CATEGORY_LONG_PRESS_MS);
+      card.addEventListener('pointermove', handlePromptCategoryPointerMove);
+      card.addEventListener('pointerup', handlePromptCategoryPointerUp, { once: true });
+      card.addEventListener('pointercancel', handlePromptCategoryPointerCancel, { once: true });
+    }
+    function handlePromptCategoryPointerMove(event) {
+      if (event.pointerId !== promptCategoryDrag.pointerId) return;
+      const distance = Math.hypot(event.clientX - promptCategoryDrag.startX, event.clientY - promptCategoryDrag.startY);
+      if (!promptCategoryDrag.active) {
+        if (distance > PROMPT_CATEGORY_MOVE_TOLERANCE) resetPromptCategoryDrag();
+        return;
+      }
+      event.preventDefault();
+      positionPromptDragGhost(event.clientX, event.clientY);
+      const target = document.elementFromPoint(event.clientX, event.clientY)?.closest?.('[data-category-drop]') || null;
+      setPromptCategoryDropTarget(target);
+    }
+    function handlePromptCategoryPointerUp(event) {
+      if (event.pointerId !== promptCategoryDrag.pointerId) return;
+      const promptId = promptCategoryDrag.promptId;
+      const categoryId = promptCategoryDrag.target?.dataset.categoryDrop || '';
+      const wasActive = promptCategoryDrag.active;
+      promptCategoryDrag.card?.removeEventListener('pointermove', handlePromptCategoryPointerMove);
+      if (wasActive) {
+        event.preventDefault();
+        promptCategoryDrag.suppressClickId = promptId;
+        promptCategoryDrag.suppressClickUntil = Date.now() + 700;
+      }
+      resetPromptCategoryDrag();
+      if (wasActive && categoryId) movePromptToCategory(promptId, categoryId);
+      else if (wasActive) toast('未更改类目：请拖到左侧某个一级类目后松手', 'error');
+    }
+    function handlePromptCategoryPointerCancel(event) {
+      if (event.pointerId !== promptCategoryDrag.pointerId) return;
+      promptCategoryDrag.card?.removeEventListener('pointermove', handlePromptCategoryPointerMove);
+      resetPromptCategoryDrag();
+    }
+    function movePromptToCategory(promptId, categoryId) {
+      if (!requireEditAccess()) return false;
+      const prompt = state.prompts.find((item) => item.id === promptId);
+      const category = state.categories.find((item) => item.id === categoryId);
+      if (!prompt || !category) return false;
+      if (prompt.category === category.id) { toast(`“${prompt.title}”已经属于“${category.name}”`); return false; }
+      const before = promptOrganizationState(prompt);
+      const mutationAt = nextMutationClock();
+      prompt.category = category.id;
+      prompt.categoryPinnedAt = 0;
+      prompt.organizationRevision = mutationAt;
+      if (!saveState()) {
+        applyPromptOrganizationState(prompt, before);
+        render();
+        toast('类目修改未保存，请检查同步连接后重试', 'error');
+        return false;
+      }
+      render();
+      showPromptOrganizationUndo(`“${prompt.title}”已归入“${category.name}”`, prompt, before);
+      return true;
     }
     function renderAssistantSpotlight() {
       const prompts = state.prompts.filter((prompt) => prompt.assistant).sort((a, b) => (b.usageCount - a.usageCount) || (b.updatedAt - a.updatedAt));
@@ -5351,16 +5618,18 @@ JSON 格式：{"status":"clarifying|generated","understandingProgress":0,"questi
         if (index !== -1) {
           const previous = state.prompts[index];
           shouldEnrich = previous.title !== title || previous.content !== content;
+          const organizationChanged = previous.category !== category;
           state.prompts[index] = {
             ...previous,
             ...payload,
+            ...(organizationChanged ? { categoryPinnedAt: 0, organizationRevision: now } : {}),
             ...(shouldEnrich ? { aiSummary: '', useCases: [], metadataStatus: hasCurrentAIKey() ? 'pending' : 'waiting', metadataUpdatedAt: 0 } : {})
           };
         }
       } else {
         savedPromptId = makeId();
         shouldEnrich = true;
-        state.prompts.unshift({ id: savedPromptId, favorite: false, assistant: false, usageCount: 0, createdAt: now, lastUsedAt: 0, parentPromptId: '', sourceType: 'manual', aiMetadata: null, aiSummary: '', useCases: [], metadataStatus: hasCurrentAIKey() ? 'pending' : 'waiting', metadataUpdatedAt: 0, revisions: [], ...payload });
+        state.prompts.unshift({ id: savedPromptId, favorite: false, assistant: false, usageCount: 0, categoryPinnedAt: 0, organizationRevision: 0, createdAt: now, lastUsedAt: 0, parentPromptId: '', sourceType: 'manual', aiMetadata: null, aiSummary: '', useCases: [], metadataStatus: hasCurrentAIKey() ? 'pending' : 'waiting', metadataUpdatedAt: 0, revisions: [], ...payload });
       }
       saveState(); render(); closeModal('editorModal'); toast(state.editingId ? '提示词已更新' : '提示词已加入收藏库');
       if (shouldEnrich && savedPromptId) {
@@ -5375,6 +5644,24 @@ JSON 格式：{"status":"clarifying|generated","understandingProgress":0,"questi
       prompt.favorite = !prompt.favorite;
       prompt.updatedAt = Date.now();
       saveState(); render(); toast(prompt.favorite ? '已加入我的收藏' : '已取消收藏');
+    }
+    function toggleCategoryPin(id) {
+      if (!requireEditAccess()) return;
+      const prompt = state.prompts.find((item) => item.id === id);
+      if (!prompt) return;
+      const before = promptOrganizationState(prompt);
+      const wasPinned = Boolean(prompt.categoryPinnedAt);
+      const mutationAt = nextMutationClock();
+      prompt.categoryPinnedAt = wasPinned ? 0 : mutationAt;
+      prompt.organizationRevision = mutationAt;
+      if (!saveState()) {
+        applyPromptOrganizationState(prompt, before);
+        render();
+        toast('置顶状态未保存，请检查同步连接后重试', 'error');
+        return;
+      }
+      render();
+      showPromptOrganizationUndo(wasPinned ? `已取消“${prompt.title}”在“${categoryName(prompt.category)}”置顶` : `“${prompt.title}”已置顶到“${categoryName(prompt.category)}”`, prompt, before);
     }
     function toggleAssistant(id) {
       if (!requireEditAccess()) return;
@@ -5413,6 +5700,47 @@ JSON 格式：{"status":"clarifying|generated","understandingProgress":0,"questi
       $('undoBar').hidden = false;
       clearTimeout(showUndo.timer);
       showUndo.timer = setTimeout(() => { $('undoBar').hidden = true; state.undoSnapshot = null; }, 10000);
+    }
+    function promptOrganizationState(prompt) {
+      return {
+        category: String(prompt.category || 'other'),
+        categoryPinnedAt: Number(prompt.categoryPinnedAt || 0),
+        organizationRevision: Number(prompt.organizationRevision || 0)
+      };
+    }
+    function applyPromptOrganizationState(prompt, organization) {
+      prompt.category = String(organization.category || 'other');
+      prompt.categoryPinnedAt = Number(organization.categoryPinnedAt || 0);
+      prompt.organizationRevision = Number(organization.organizationRevision || 0);
+    }
+    function showPromptOrganizationUndo(message, prompt, before) {
+      showUndo(message, {
+        kind: 'prompt-organization',
+        promptId: prompt.id,
+        before,
+        after: promptOrganizationState(prompt)
+      });
+    }
+    function restorePromptOrganizationChange(change) {
+      const prompt = state.prompts.find((item) => item.id === change?.promptId);
+      if (!prompt) { toast('无法撤销：这条提示词已被删除或移动到回收站', 'error'); return false; }
+      const current = promptOrganizationState(prompt);
+      if (current.category !== change.after?.category || current.categoryPinnedAt !== Number(change.after?.categoryPinnedAt || 0) || current.organizationRevision !== Number(change.after?.organizationRevision || 0)) {
+        toast('无法撤销：这条提示词已在其他设备或标签页被重新分类，请先同步查看最新状态', 'error');
+        return false;
+      }
+      const failedState = current;
+      prompt.category = String(change.before?.category || 'other');
+      prompt.categoryPinnedAt = Number(change.before?.categoryPinnedAt || 0);
+      prompt.organizationRevision = nextMutationClock();
+      if (!saveState()) {
+        applyPromptOrganizationState(prompt, failedState);
+        render();
+        toast('撤销未保存，请检查同步连接后重试', 'error');
+        return false;
+      }
+      render();
+      return true;
     }
     function openCategoryManager() { if (!requireEditAccess()) return; renderCategoryManager(); openModal('categoryModal'); }
     function renderCategoryManager() {
@@ -5489,8 +5817,8 @@ JSON 格式：{"status":"clarifying|generated","understandingProgress":0,"questi
       if (affected && (!target || target.id === id)) { toast('请选择有效的目标类目', 'error'); return; }
       const before = snapshotState();
       const changedAt = nextMutationClock();
-      state.prompts = state.prompts.map((prompt) => prompt.category === id ? { ...prompt, category: targetId, updatedAt: changedAt } : prompt);
-      state.trash = state.trash.map((prompt) => prompt.category === id ? { ...prompt, category: targetId, updatedAt: changedAt } : prompt);
+      state.prompts = state.prompts.map((prompt) => prompt.category === id ? { ...prompt, category: targetId, categoryPinnedAt: 0, organizationRevision: changedAt, updatedAt: changedAt } : prompt);
+      state.trash = state.trash.map((prompt) => prompt.category === id ? { ...prompt, category: targetId, categoryPinnedAt: 0, organizationRevision: changedAt, updatedAt: changedAt } : prompt);
       state.categories = state.categories.filter((item) => item.id !== id);
       state.categoryPurged = [...state.categoryPurged.filter((item) => item.id !== id), { id, purgedAt: changedAt }];
       state.categoryRevision = changedAt;
@@ -5773,7 +6101,15 @@ JSON 格式：{"status":"clarifying|generated","understandingProgress":0,"questi
     function batchChangeCategory(category) {
       if (!requireEditAccess()) return;
       if (!category || !state.selected.size) return;
-      const changedCount = state.selected.size; const before = snapshotState(); selectedPrompts().forEach((prompt) => { prompt.category = category; prompt.updatedAt = Date.now(); });
+      const changedCount = state.selected.size; const before = snapshotState(); const changedAt = nextMutationClock();
+      selectedPrompts().forEach((prompt) => {
+        if (prompt.category !== category) {
+          prompt.category = category;
+          prompt.categoryPinnedAt = 0;
+          prompt.organizationRevision = changedAt;
+          prompt.updatedAt = changedAt;
+        }
+      });
       state.selected.clear(); saveState(); render(); showUndo(`已修改 ${changedCount} 条提示词的类目`, before); $('batchCategorySelect').value = '';
     }
     function batchAddTags() {
@@ -6071,7 +6407,18 @@ JSON 格式：{"status":"clarifying|generated","understandingProgress":0,"questi
     $('toggleGithubTokenButton').addEventListener('click', () => { const input=$('githubTokenInput');input.type=input.type==='password'?'text':'password';$('toggleGithubTokenButton').textContent=input.type==='password'?'显示':'隐藏'; });
     $('clearGithubTokenButton').addEventListener('click', () => { if (!state.githubToken && !$('githubTokenInput').value && !state.privateCacheLocked) return; if (confirm('清除当前设备保存的 GitHub Token 和私有缓存吗？私有仓库中的数据不会删除。')) disconnectGithub(); });
     $('emptyTrashButton').addEventListener('click', emptyTrash);
-    $('undoButton').addEventListener('click', () => { if (!state.undoSnapshot) return; const snapshot = state.undoSnapshot; state.undoSnapshot = null; $('undoBar').hidden = true; restoreSnapshot(snapshot); toast('已撤销上一步操作'); });
+    $('undoButton').addEventListener('click', () => {
+      if (!state.undoSnapshot) return;
+      const snapshot = state.undoSnapshot;
+      state.undoSnapshot = null;
+      $('undoBar').hidden = true;
+      if (snapshot.kind === 'prompt-organization') {
+        if (restorePromptOrganizationChange(snapshot)) toast('已撤销上一步分类或置顶操作');
+        return;
+      }
+      restoreSnapshot(snapshot);
+      toast('已撤销上一步操作');
+    });
     $('copyVariableOutputButton').addEventListener('click', async () => { const copied = await copyText($('variableOutput').value); if (!copied) { toast('复制失败，请手动复制', 'error'); return; } const prompt = state.prompts.find((item) => item.id === state.variablePromptId); if (prompt && canEdit()) { prompt.usageCount += 1; prompt.lastUsedAt = Date.now(); saveState(); render(); } toast('填写后的提示词已复制'); });
     $('copyCodexHandoffButton').addEventListener('click', async () => { const copied = await copyText($('codexHandoffPreview').value); toast(copied ? 'Agent 分类整理指令已复制' : '复制失败，请手动选中任务内容', copied ? 'success' : 'error'); });
     $('downloadCodexHandoffButton').addEventListener('click', () => { downloadTextFile(`Prompt-Shelf-Agent分类整理-${new Date().toISOString().slice(0,10)}.md`, $('codexHandoffPreview').value, 'text/markdown;charset=utf-8'); toast('Agent 分类整理指令已下载'); });
@@ -6191,6 +6538,13 @@ JSON 格式：{"status":"clarifying|generated","understandingProgress":0,"questi
     document.querySelectorAll('[data-close-modal]').forEach((node) => node.addEventListener('click', () => closeModal(node.dataset.closeModal)));
     document.querySelectorAll('.modal-backdrop').forEach((backdrop) => backdrop.addEventListener('click', (event) => { if (event.target === backdrop) closeModal(backdrop.id); }));
     document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && (promptCategoryDrag.active || promptCategoryDrag.timer)) {
+        event.preventDefault();
+        promptCategoryDrag.card?.removeEventListener('pointermove', handlePromptCategoryPointerMove);
+        resetPromptCategoryDrag();
+        toast('已取消分类拖拽');
+        return;
+      }
       if (event.key === 'Escape' && $('aiContextTrigger')?.getAttribute('aria-expanded') === 'true') { event.preventDefault(); setAIContextMenuOpen(false); $('aiContextTrigger').focus(); return; }
       const openModalNode = $(state.modalFocusStack[state.modalFocusStack.length - 1]?.id) || null;
       if (event.key === 'Tab' && openModalNode) {
