@@ -78,7 +78,7 @@ Prompt & Skill Shelf 是一个公开框架 + 私有个人工作区的提示词�
 - `data/skills-index.json`
 - `data/ai-chats.json`
 
-默认分支和文件路径可以在“同步与备份”中修改。Fine-grained Token 应只授权该私有仓库，并只开放 `Contents: Read and write`。
+维护者的线上入口在首次连接时默认填写 `prompt-shelf-private-workspace`；已保存的工作区配置仍优先使用，匿名访问继续读取公共空白模板。默认分支和文件路径可以在“同步与备份”中修改。Fine-grained Token 应只授权该私有仓库，并只开放 `Contents: Read and write`。
 
 每台设备只需首次连接一次。连接信息保存在当前设备；页面打开、恢复联网、重新聚焦、定时检查或点击“立即同步”时读取最新数据。提示词新增、编辑、删除和恢复会写入私有工作区；Skill 索引由私有工作区只读提供；AI 导航助手的非空对话会同步到同一工作区。
 

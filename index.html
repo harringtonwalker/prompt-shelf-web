@@ -2107,7 +2107,7 @@
           <p class="handoff-footnote">请使用只授权目标仓库、仅含 Contents 读写权限的 Fine-grained Token。Token 只保存在当前设备的 IndexedDB，不进入 Git、提示词、导出文件或日志。浏览器存储按整个 harringtonwalker.github.io 来源隔离，而不是按项目路径隔离，因此不要在这个来源下运行不受信任的第三方页面。</p>
           <div class="cloud-sync-grid">
             <div class="field"><label for="githubOwnerInput">仓库所有者</label><input id="githubOwnerInput" type="text" autocomplete="off" spellcheck="false" placeholder="例如 harringtonwalker"></div>
-            <div class="field"><label for="githubRepoInput">仓库名称</label><input id="githubRepoInput" type="text" autocomplete="off" spellcheck="false" placeholder="例如 prompt-shelf-web"></div>
+            <div class="field"><label for="githubRepoInput">仓库名称</label><input id="githubRepoInput" type="text" autocomplete="off" spellcheck="false" placeholder="例如 prompt-shelf-private-workspace"></div>
             <div class="field"><label for="githubBranchInput">数据分支</label><input id="githubBranchInput" type="text" autocomplete="off" spellcheck="false" placeholder="main"></div>
             <div class="field"><label for="githubPromptsPathInput">提示词文件路径</label><input id="githubPromptsPathInput" type="text" autocomplete="off" spellcheck="false" placeholder="data/prompts.json"></div>
             <div class="field"><label for="githubSkillsPathInput">Skill 索引路径</label><input id="githubSkillsPathInput" type="text" autocomplete="off" spellcheck="false" placeholder="data/skills-index.json"></div>
@@ -6282,7 +6282,7 @@ JSON 格式：{"status":"clarifying|generated","understandingProgress":0,"questi
       $('githubSyncNowButton').textContent = state.githubToken ? '立即同步' : '刷新公共模板';
       $('githubConnectionSettings').open = state.githubStatus === 'error';
       if (document.activeElement !== $('githubOwnerInput')) $('githubOwnerInput').value = state.githubConfig.owner;
-      if (document.activeElement !== $('githubRepoInput')) $('githubRepoInput').value = state.githubConfig.repo;
+      if (document.activeElement !== $('githubRepoInput')) $('githubRepoInput').value = WALKER_DEPLOYMENT && !state.githubToken && !state.privateCacheLocked ? 'prompt-shelf-private-workspace' : state.githubConfig.repo;
       if (document.activeElement !== $('githubBranchInput')) $('githubBranchInput').value = state.githubConfig.branch;
       if (document.activeElement !== $('githubPromptsPathInput')) $('githubPromptsPathInput').value = state.githubConfig.promptsPath;
       if (document.activeElement !== $('githubSkillsPathInput')) $('githubSkillsPathInput').value = state.githubConfig.skillsPath;
